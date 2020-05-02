@@ -23,14 +23,19 @@ module.exports = class Game {
     }
 
     operatorCall(operatorHash, operatorCall) {
-        if (this.operatorHash === operatorHash) {
-            if (this.calledNumbers.indexOf(operatorCall) > -1) {
-                throw 'already-called';
+        return new Promise((resolve, reject) => {
+            console.log(this.operatorHash, operatorHash, operatorCall)
+            if (this.operatorHash === operatorHash) {
+                if (this.calledNumbers.indexOf(operatorCall) > -1) {
+                    reject('allready-called')
+                }
+                this.calledNumbers.push(operatorCall);
+                resolve('OK')
+            } else {
+                reject('not-an-operator')
             }
-            this.calledNumbers.push(operatorCall)
-        } else {
-            throw 'not-an-operator';
-        }
+        })
+        
     }
 
     callBingo(cardId) {
