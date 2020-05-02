@@ -1,6 +1,6 @@
 const RandomNumberProvider = require('./random-number-provider');
 const BingoCell = require('./bingo-cell');
-const { v4: uuidv4 } = require('uuid');
+var short = require('short-uuid');
 
 module.exports = class BingoCard {
 
@@ -8,7 +8,7 @@ module.exports = class BingoCard {
     numbers = [];
 
     constructor(playerId) {
-        this.id = uuidv4();
+        this.id = short.generate();
         this.playerId = playerId;
 
         for (var i = 0; i < 5; i++) {
