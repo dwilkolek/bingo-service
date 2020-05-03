@@ -1,7 +1,8 @@
 module.exports = class RandomNumberProvider {
 
-    numbers = [];
+    
     constructor(from, to) {
+        this.numbers = [];
         for (let i=from; i<= to; i++) {
             this.numbers.push(i);
         }
@@ -12,6 +13,14 @@ module.exports = class RandomNumberProvider {
             return Math.random() >= 0.5 ? 1 : -1;
         });
         return this.numbers.pop();
+    }
+
+    getRandomNumbers(n) {
+        var nums = [];
+        for (var i = 0; i < n; i++) {
+            nums.push(this.getRandomNumber());
+        }
+        return nums.sort();
     }
 
 }

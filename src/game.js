@@ -15,30 +15,27 @@ var CARD_RULES = {
 
 module.exports = class Game {
 
-    id = null;
-    operatorHash = null;
-
-    status = STATUS.WAITING_FOR_PLAYERS;
-
-    name = 'Unnamed';
-    players = {};
-
-    leftNumbers = [];
-    calledNumbers = [];
-    lastCalledNumber;
-
-    rule = RULES.ONE_LINE;
-
-    cardLimit = 3;
-    cardRule = CARD_RULES.ALL_EVEN;
-
-    winner;
-
+    
     constructor(name) {
+
+        this.status = STATUS.WAITING_FOR_PLAYERS; 
+        this.players = {};    
+        this.leftNumbers = [];
+        this.calledNumbers = [];
+        this.lastCalledNumber = null;    
+        this.rule = RULES.ONE_LINE;
+    
+        this.cardLimit = 3;
+        this.cardRule = CARD_RULES.ALL_EVEN;
+    
+        this.winner = null;
+
+
+
         this.id = uuidv4();
         this.name = name;
         this.operatorHash = uuidv4();
-        this.leftNumbers = [];
+        
         for (let i = 1; i <= 75; i++) {
             this.leftNumbers.push(i);
         }

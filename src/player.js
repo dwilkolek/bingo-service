@@ -2,10 +2,9 @@ const { v4: uuidv4 } = require('uuid');
 const BingoCard = require('./bingo-card');
 module.exports = class Player {
 
-    bingoCards = {};
-    sockets = [];
-
     constructor(playerName) {
+        this.bingoCards = {};
+        this.sockets = [];
         this.id = uuidv4();
         this.name = playerName;
     }
