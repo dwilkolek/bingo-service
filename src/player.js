@@ -1,17 +1,22 @@
-const { v4: uuidv4 } = require('uuid');
 const BingoCard = require('./bingo-card');
+var short = require('short-uuid');
+
 module.exports = class Player {
 
     constructor(playerName) {
         this.bingoCards = {};
         this.sockets = [];
-        this.id = uuidv4();
+        this.id = short.generate();
         this.name = playerName;
     }
 
-    createBingoCards(n) {
+    points() {
+        return Object.keys(this.bingoCards).map(cardId => this.bingoCards[cardId].points).reduce((a, b) => a + b, 0);
+    }
+
+    createBingoCards(n, availablePatterns) {
         for (let i = 0; i < n; i++) {
-            const card = new BingoCard(this.id);
+            const card = new BingoCard(this.id, availablePatterns);
             this.bingoCards[card.id] = card;
         }
     }

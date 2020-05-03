@@ -1,5 +1,7 @@
 
 const Game = require('./game');
+const constats = require('./constats');
+
 const express = require('express')
 const app = express()
 const port = 8080
@@ -21,12 +23,13 @@ io.on('connection', socket => {
     console.log('connected')
     socket.on('join-game', msg => {
         console.log('join-game', msg);
+        if (games[msg.gameId]) {
+            gameId = msg.gameId;
+            socket.join(gameId);
+        }
 
-        gameId = msg.gameId
         playerId = msg.playerId;
         operatorHash = msg.operatorHash;
-
-        socket.join(gameId);
 
         if (gameId && games[gameId] && playerId && games[gameId].players[playerId]) {
             console.log('adding socket ', playerId, socket.id);
@@ -37,7 +40,7 @@ io.on('connection', socket => {
     });
     socket.on('get-winner', () => {
         if (games[gameId]) {
-            socket.emit('winner', games[gameId].winner);
+            socket.emit('winner', games[gameId].getWinnerMessage());
         }
     });
     socket.on('get-status', () => {
@@ -52,7 +55,13 @@ io.on('connection', socket => {
     });
     socket.on('get-last-call', () => {
         if (games[gameId]) {
-            socket.emit('last-call', games[gameId].lastCalledNumber)
+            socket.emit('call', games[gameId].lastCalledNumber)
+        }
+    });
+    socket.on('get-points', () => {
+        console.log('get-points', gameId, playerId)
+        if (games[gameId]) {
+            socket.emit('points', games[gameId].getPlayerPoints(playerId));
         }
     });
     socket.on('disconnecting', () => {
@@ -68,12 +77,18 @@ io.on('connection', socket => {
             games[gameId].markCardForPlayer(playerId, msg.cardId, msg.row, msg.col);
         }
     });
-    socket.on('bingo', (cardId) => {
-        console.log('bingo', cardId)
+    socket.on('bingo', (msg) => {
+        console.log('bingo', msg)
         if (gameId && playerId) {
-            games[gameId].callBingo(playerId, cardId).then(() => {
-                io.in(`${gameId}`).emit('status', games[gameId].status)
-                io.in(`${gameId}`).emit('winner', games[gameId].winner);
+            games[gameId].callBingo(playerId, msg.cardId, msg.pattern).then((result) => {
+                if (result.isBingo) {
+                    socket.emit('points', games[gameId].getPlayerPoints(playerId));
+
+                    if (result.isWin) {
+                        io.in(`${gameId}`).emit('status', games[gameId].status);
+                        io.in(`${gameId}`).emit('winner', games[gameId].getWinnerMessage());
+                    }
+                }
             }).catch(reason => {
                 console.error(reason);
             });
@@ -97,27 +112,20 @@ io.on('connection', socket => {
     })
 })
 
-
-var gameToOperator = (game) => {
-    return { id: game.id, name: game.name, operatorHash: game.operatorHash, status: game.status, playersCount: Object.keys(game.players).length, lastCalledNumber: game.lastCalledNumber, calledNumbers: game.calledNumbers }
-}
-var gameToPlayer = (game) => {
-    return { id: game.id, name: game.name, status: game.status, playersCount: Object.keys(game.players).length, lastCalledNumber: game.lastCalledNumber }
-}
 app.post('/api/game', (req, res) => {
-    const game = new Game(req.body.name);
+    const game = new Game(req.body.name, req.body.pattern, req.body.winBy, req.body.cardLimit, req.body.cardRule);
     games[game.id] = game;
-    res.send(gameToOperator(game));
+    res.send(game.forOperator());
 })
 
 app.get('/api/game/:gameId/:operatorHash', (req, res) => {
     const gameId = req.params.gameId;
     if (!games[gameId]) {
-        throw 'no-such-game';
+        res.status(500).send('no-such-game');
     }
     const operatorHash = req.params.operatorHash;
     if (games[gameId].operatorHash == operatorHash) {
-        res.send(gameToOperator(games[gameId]));
+        res.send(games[gameId].forOperator());
     } else {
         res.status(500).send('you-are-not-an-operator');
     }
@@ -125,32 +133,15 @@ app.get('/api/game/:gameId/:operatorHash', (req, res) => {
 app.get('/api/game/:gameId/', (req, res) => {
     const gameId = req.params.gameId;
     if (!games[gameId]) {
-        throw 'no-such-game';
+        res.status(500).send('no-such-game');
     }
-    res.send(gameToPlayer(games[gameId]));
+    res.send(games[gameId].forPlayer());
 })
 app.get('/api/game', (req, res) => {
     res.send(Object.keys(games).map(id => {
-        return gameToPlayer(games[id]);
-    }));
+        return games[id].forPlayer();
+    }).filter(game => game.status == constats.STATUS.WAITING_FOR_PLAYERS));
 })
-
-app.post('/api/game/:gameId/call', (req, res) => {
-    const gameId = req.params.gameId;
-    if (!games[gameId]) {
-        throw 'no-such-game';
-    }
-    const operatorHash = req.body.operatorHash;
-    games[gameId].operatorCall(operatorHash).then((calledNumber) => {
-        io.in(`${gameId}`).emit('operatorCalled', calledNumber);
-        res.send(games[gameId].calledNumbers);
-    }).catch((reason) => {
-        console.error(reason)
-        res.status(500).send(reason);
-    });
-
-})
-
 
 app.get('/api/game/:gameId/player/:playerId', (req, res) => {
     const gameId = req.params.gameId;
@@ -170,23 +161,7 @@ app.post('/api/game/:gameId/subscribe', (req, res) => {
         throw 'no-such-game';
     }
     const playerName = req.body.playerName;
-    const cards = req.body.cards;
-    res.send(games[gameId].subscribe(playerName, cards));
+    res.send(games[gameId].subscribe(playerName));
 })
-
-// app.post('/api/game/:gameId/player/:playerId/card/:cardId/bingo', (req, res) => {
-//     const gameId = req.params.gameId;
-//     if (!games[gameId]) {
-//         throw 'no-such-game';
-//     }
-//     const cardId = req.params.cardId;
-//     const playerId = req.params.cardId;
-//     games[gameId].callBingo(cardId).then(() => {
-//         io.in(`${gameId}`).emit('game-end', { cardId: cardId });
-//         res.send();
-//     }).catch((e) => {
-//         res.status(500).send(e);
-//     });
-// });
 
 http.listen(port, () => console.log(`Example app listening at http://localhost:${port}`))

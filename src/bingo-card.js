@@ -4,10 +4,15 @@ var short = require('short-uuid');
 
 module.exports = class BingoCard {
 
-    constructor(playerId) {
+    constructor(playerId, availablePatterns) {
         this.id = short.generate();
         this.playerId = playerId;
         this.numbers = [];
+        this.points = 0;
+        this.patternsChecked = [];
+        
+        this.availablePatterns = availablePatterns;
+
         for (var i = 0; i < 5; i++) {
             var gen = new RandomNumberProvider(i * 15 + 1, (i + 1) * 15).getRandomNumbers(5);
             for (var j = 0; j < 5; j++) {
@@ -19,8 +24,18 @@ module.exports = class BingoCard {
         }
     }
 
-    checkBingo(rule, calledNumbers) {
-        return rule(this.numbers, calledNumbers);
+    checkPattern(pattern, calledNumbers) {
+        console.log(pattern.name, this.patternsChecked.indexOf(pattern.name), this.availablePatterns)
+        if (this.patternsChecked.indexOf(pattern.name) === -1 && this.availablePatterns.indexOf(pattern.name) > -1) {
+            const result = pattern.validator(this.numbers, calledNumbers);
+            console.log(result)
+            if (result) {
+                this.patternsChecked.push(pattern.name);
+                this.points += pattern.points;
+                return true;
+            }
+        }
+        return false;
     }
 
     mark(row, col) {

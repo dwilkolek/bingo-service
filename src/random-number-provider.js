@@ -20,7 +20,7 @@ module.exports = class RandomNumberProvider {
         for (var i = 0; i < n; i++) {
             nums.push(this.getRandomNumber());
         }
-        return nums.sort();
+        return nums.sort((a, b) => b - a);
     }
 
 }
