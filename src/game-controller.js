@@ -91,7 +91,7 @@ module.exports = class GameController {
         }
         setTimeout(() => {
             console.warn('deleting game ', gameId);
-            this.games[gameId] = null;
+            delete this.games[gameId];
         }, 15 * 60 * 1000);
     }
 
