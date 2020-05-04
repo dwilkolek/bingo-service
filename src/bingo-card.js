@@ -1,6 +1,7 @@
 const RandomNumberProvider = require('./random-number-provider');
 const BingoCell = require('./bingo-cell');
 var short = require('short-uuid');
+const constats = require('./constats');
 
 module.exports = class BingoCard {
 
@@ -10,7 +11,10 @@ module.exports = class BingoCard {
         this.numbers = [];
         this.points = 0;
         this.patternsChecked = [];
-        
+        this.maxStrikes = 5;
+        this.striked = 0;
+        this.banned = false;
+
         this.availablePatterns = availablePatterns;
 
         for (var i = 0; i < 5; i++) {
@@ -25,10 +29,11 @@ module.exports = class BingoCard {
     }
 
     checkPattern(pattern, calledNumbers) {
-        console.log(pattern.name, this.patternsChecked.indexOf(pattern.name), this.availablePatterns)
+        if (this.banned) {
+            return false;
+        }
         if (this.patternsChecked.indexOf(pattern.name) === -1 && this.availablePatterns.indexOf(pattern.name) > -1) {
             const result = pattern.validator(this.numbers, calledNumbers);
-            console.log(result)
             if (result) {
                 this.patternsChecked.push(pattern.name);
                 this.points += pattern.points;
@@ -40,6 +45,17 @@ module.exports = class BingoCard {
 
     mark(row, col) {
         this.numbers[row][col].marked = !this.numbers[row][col].marked;
+    }
+
+    strike() {
+        this.striked++;
+        if (this.striked == this.maxStrikes) {
+            this.banned = true;
+        }
+    }
+
+    isBanned() {
+        return this.banned;
     }
 
 }

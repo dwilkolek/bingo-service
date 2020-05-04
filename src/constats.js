@@ -29,11 +29,10 @@ module.exports = {
         ONE_LINE: {
             name: 'ONE_LINE',
             points: 1,
+            lowerRankedPatterns: [],
             validator: (nums, calledNumbers) => {
-                console.log(calledNumbers);
                 for (let i = 0; i < nums.length; i++) {
                     const row = nums[i];
-                    console.log(row);
                     if (row.map(cell => cell.marked && (cell.value == null || calledNumbers.indexOf(cell.value) > -1)).reduce((a, b) => a && b, true)) {
                         return true;
                     }
@@ -44,6 +43,7 @@ module.exports = {
         TWO_LINE: {
             name: 'TWO_LINE',
             points: 2,
+            lowerRankedPatterns: ['ONE_LINE'],
             validator: (nums, calledNumbers) => {
                 let lines = 0;
                 for (let i = 0; i < nums.length; i++) {
@@ -61,6 +61,7 @@ module.exports = {
         FULL_HOUSE: {
             name: 'FULL_HOUSE',
             points: 4,
+            lowerRankedPatterns: ['ONE_LINE', 'TWO_LINE'],
             validator: (nums, calledNumbers) => {
                 return nums.map(
                     row => row

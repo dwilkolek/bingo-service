@@ -1,6 +1,6 @@
 
-const Game = require('./game');
-const constats = require('./constats');
+const GameController = require('./game-controller');
+
 
 const express = require('express')
 const app = express()
@@ -14,154 +14,114 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 var io = require('socket.io')(http);
 
-const games = {};
+const gameController = new GameController(
+    (gameId, call) => io.in(`${gameId}`).emit('call', call),
+    (gameId, status) => io.in(`${gameId}`).emit('status', status)
+);
 
 io.on('connection', socket => {
     let gameId;
     let playerId;
     let operatorHash;
-    console.log('connected')
+
     socket.on('join-game', msg => {
-        console.log('join-game', msg);
-        if (games[msg.gameId]) {
+        if (gameController.addSocketToPlayer(msg.gameId, msg.playerId, socket.id)) {
             gameId = msg.gameId;
+            playerId = msg.playerId;
             socket.join(gameId);
+            io.in(gameId).emit('player-count', gameController.getPlayerCount(gameId))
         }
-
-        playerId = msg.playerId;
-        operatorHash = msg.operatorHash;
-
-        if (gameId && games[gameId] && playerId && games[gameId].players[playerId]) {
-            console.log('adding socket ', playerId, socket.id);
-            games[gameId].players[playerId].addSocket(socket.id);
-            console.log('player-count', games[gameId].getPlayerCount())
-            io.in(gameId).emit('player-count', games[gameId].getPlayerCount())
+        if (gameController.isGameOperator(msg.gameId, msg.operatorHash)) {
+            gameId = msg.gameId;
+            operatorHash = msg.operatorHash;
+            socket.join(gameId);
         }
     });
     socket.on('get-winner', () => {
-        if (games[gameId]) {
-            socket.emit('winner', games[gameId].getWinnerMessage());
-        }
+        socket.emit('winner', gameController.getWinnerMessage(gameId));
     });
     socket.on('get-status', () => {
-        if (games[gameId]) {
-            socket.emit('status', games[gameId].status)
-        }
+        socket.emit('status', gameController.getGameStatus(gameId));
     });
     socket.on('get-player-count', () => {
-        if (games[gameId]) {
-            socket.emit('player-count', games[gameId].getPlayerCount())
-        }
+        socket.emit('player-count', gameController.getPlayerCount(gameId))
     });
     socket.on('get-last-call', () => {
-        if (games[gameId]) {
-            socket.emit('call', games[gameId].lastCalledNumber)
-        }
+        socket.emit('call', gameController.getLastCall(gameId))
     });
     socket.on('get-points', () => {
-        console.log('get-points', gameId, playerId)
-        if (games[gameId]) {
-            socket.emit('points', games[gameId].getPlayerPoints(playerId));
-        }
+        socket.emit('points', gameController.getPlayerPoints(playerId));
     });
     socket.on('disconnecting', () => {
-        if (gameId && playerId && games[gameId] && games[gameId].players[playerId]) {
-            games[gameId].players[playerId].removeSocket(socket.id);
-            io.in(gameId).emit('player-count', games[gameId].getPlayerCount())
+        if (gameController.removeSocketFromPlayer(gameId, playerId, socket.id)) {
+            io.in(gameId).emit('player-count', gameController.getPlayerCount(gameId))
         }
     })
 
     socket.on('toggle-mark', (msg) => {
-        console.log('toggle-mark', msg);
-        if (gameId && playerId) {
-            games[gameId].markCardForPlayer(playerId, msg.cardId, msg.row, msg.col);
-        }
+        gameController.markCardForPlayer(gameId, playerId, msg.cardId, msg.row, msg.col)
     });
     socket.on('bingo', (msg) => {
-        console.log('bingo', msg)
-        if (gameId && playerId) {
-            games[gameId].callBingo(playerId, msg.cardId, msg.pattern).then((result) => {
-                if (result.isBingo) {
-                    socket.emit('points', games[gameId].getPlayerPoints(playerId));
-
-                    if (result.isWin) {
-                        io.in(`${gameId}`).emit('status', games[gameId].status);
-                        io.in(`${gameId}`).emit('winner', games[gameId].getWinnerMessage());
-                    }
+        gameController.callBingo(gameId, playerId, msg.cardId).then((result) => {
+            if (result.isBingo) {
+                socket.emit('points', gameController.getPlayerPoints(gameId, playerId));
+                if (result.isWin) {
+                    io.in(`${gameId}`).emit('status', gameController.getGameStatus(gameId));
+                    io.in(`${gameId}`).emit('winner', gameController.getWinnerMessage(gameId));
                 }
-            }).catch(reason => {
-                console.error(reason);
-            });
-        }
+            }
+            if (result.strike) {
+                socket.emit('strike', result.strike);
+            }
+        }).catch(reason => {
+            console.error(reason);
+        });
     });
     socket.on('start-game', () => {
-        games[gameId].startGame(operatorHash).then(() => {
-            io.in(`${gameId}`).emit('status', games[gameId].status)
-        }).catch((reason) => {
-            console.error(reason);
-        })
+        gameController.startGame(gameId, operatorHash);
     })
     socket.on('next-call', () => {
-        console.log('next-call')
-        games[gameId].operatorCall(operatorHash).then((calledNumber) => {
-            console.log('call', calledNumber)
-            io.in(`${gameId}`).emit('call', calledNumber);
-        }).catch(reason => {
-            console.error(reason)
-        });
+        gameController.nextCall();
     })
 })
 
 app.post('/api/game', (req, res) => {
-    const game = new Game(req.body.name, req.body.pattern, req.body.winBy, req.body.cardLimit, req.body.cardRule);
-    games[game.id] = game;
-    res.send(game.forOperator());
+    res.send(gameController.createGame(req.body.name, req.body.pattern, req.body.winBy, req.body.cardLimit, req.body.cardRule, req.body.asOperator));
 })
 
-app.get('/api/game/:gameId/:operatorHash', (req, res) => {
-    const gameId = req.params.gameId;
-    if (!games[gameId]) {
-        res.status(500).send('no-such-game');
-    }
-    const operatorHash = req.params.operatorHash;
-    if (games[gameId].operatorHash == operatorHash) {
-        res.send(games[gameId].forOperator());
-    } else {
-        res.status(500).send('you-are-not-an-operator');
+app.get('/api/game/:gameId/:operatorHash?', (req, res) => {
+    try {
+        res.send(gameController.getGame(req.params.gameId, req.params.operatorHash))
+    } catch (e) {
+        res.status(500).send(e);
     }
 })
-app.get('/api/game/:gameId/', (req, res) => {
-    const gameId = req.params.gameId;
-    if (!games[gameId]) {
-        res.status(500).send('no-such-game');
-    }
-    res.send(games[gameId].forPlayer());
-})
+// app.get('/api/game/:gameId/', (req, res) => {
+//     const gameId = req.params.gameId;
+//     if (!games[gameId]) {
+//         res.status(500).send('no-such-game');
+//     }
+//     res.send(games[gameId].forPlayer());
+// })
 app.get('/api/game', (req, res) => {
-    res.send(Object.keys(games).map(id => {
-        return games[id].forPlayer();
-    }).filter(game => game.status == constats.STATUS.WAITING_FOR_PLAYERS));
+    res.send(gameController.getListOfGames())
 })
 
 app.get('/api/game/:gameId/player/:playerId', (req, res) => {
-    const gameId = req.params.gameId;
-    if (!games[gameId]) {
-        throw 'no-such-game';
+    try {
+        res.send(gameController.getPlayerFromGame(req.params.gameId, req.params.playerId))
+    } catch (e) {
+        res.status(500).send(e);
     }
-    games[gameId].getPlayer(req.params.playerId).then(player => {
-        res.send(player)
-    }).catch(reason => {
-        res.status(500).send(reason);
-    });
 })
 
 app.post('/api/game/:gameId/subscribe', (req, res) => {
-    const gameId = req.params.gameId;
-    if (!games[gameId]) {
-        throw 'no-such-game';
-    }
     const playerName = req.body.playerName;
-    res.send(games[gameId].subscribe(playerName));
+    try {
+        res.send(gameController.subscribeToGame(req.params.gameId, playerName))
+    } catch (e) {
+        res.status(500).send(e);
+    }
 })
 
 http.listen(port, () => console.log(`Example app listening at http://localhost:${port}`))
