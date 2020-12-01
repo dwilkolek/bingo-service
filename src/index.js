@@ -81,7 +81,7 @@ io.on('connection', socket => {
         gameController.startGame(gameId, operatorHash);
     })
     socket.on('next-call', () => {
-        gameController.nextCall();
+        gameController.nextCall(gameId, operatorHash);
     })
 })
 

@@ -5,7 +5,7 @@ module.exports = class VirtualOperator {
         this.timeout = setTimeout(() => {
             start();
             this.interval = setInterval(call, callInterval);
-        }, 2 * 60 * 1000);
+        }, 60 * 1000);
 
     }
 

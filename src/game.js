@@ -143,7 +143,7 @@ module.exports = class Game {
         return Object.keys(this.players).map(playerId => {
             const player = this.players[playerId];
             return { id: player.id, name: player.name, points: player.points() }
-        }).sort((a, b) => a.points - b.points);
+        }).sort((a, b) => b.points - a.points);
     }
 
     markCardForPlayer(playerId, cardId, row, col) {
